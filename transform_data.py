@@ -1,4 +1,4 @@
-from utils import group_fuzzy_matches, LABEL_NAMES
+from utils import group_fuzzy_matches, LABEL_NAMES, print_column_stats
 from sklearn.preprocessing import OrdinalEncoder
 
 import pandas as pd
@@ -28,8 +28,10 @@ def transform_data(df: pd.DataFrame, fit_encoders: bool, encoders: dict | None =
     # id holds no value
     transformed = transformed.drop("id", axis = 1)
 
-    # extract simple year since temporal feature from the date recorded
-    transformed["years_since_recorded"] = (pd.Timestamp.now() - transformed["date_recorded"]).dt.days / 365.25
+    # extract simple day, month and year temporal features from the date recorded
+    transformed["day"] = transformed["date_recorded"].dt.day
+    transformed["month"]  = transformed["date_recorded"].dt.month
+    transformed["year"] = transformed["date_recorded"].dt.year
     transformed = transformed.drop("date_recorded", axis = 1)
 
     # use fuzzy matching to group similar strings
@@ -42,7 +44,7 @@ def transform_data(df: pd.DataFrame, fit_encoders: bool, encoders: dict | None =
         if fit_encoders:
             encoders[f"{col}_top_categories"] = top_categories
 
-    # naive mean strategy for numerical columns
+    # naive mean strategy for numerical columns, recall
     numerical_cols = transformed.select_dtypes(include=[np.number]).columns
     for col in numerical_cols:
         if transformed[col].isna().any():
@@ -69,6 +71,7 @@ def transform_data(df: pd.DataFrame, fit_encoders: bool, encoders: dict | None =
         transformed[categorical_cols] = encoder.transform(transformed[categorical_cols])
 
     # print_column_stats_many_unique(transformed, UNIQUE_PRINT_THRESHOLD) 
+    print_column_stats(transformed)
 
     return transformed, encoders
 

@@ -1,11 +1,12 @@
 from utils import LABEL_NAMES, OUTPUT_DIR, SEED
 
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
+# from sklearn.ensemble import RandomForestClassifier
+from imblearn.ensemble import BalancedRandomForestClassifier
 from sklearn.metrics import classification_report
 
-def train_rfc(X: pd.DataFrame, y: pd.Series) -> RandomForestClassifier:
-    rfc = RandomForestClassifier(
+def train_rfc(X: pd.DataFrame, y: pd.Series) -> BalancedRandomForestClassifier:
+    rfc = BalancedRandomForestClassifier(
         n_estimators=200,
         class_weight="balanced",
         random_state=SEED,
@@ -14,7 +15,7 @@ def train_rfc(X: pd.DataFrame, y: pd.Series) -> RandomForestClassifier:
     rfc.fit(X, y)
     return rfc
 
-def evaluate_rfc(rfc: RandomForestClassifier, X: pd.DataFrame, y: pd.Series) -> None:
+def evaluate_rfc(rfc: BalancedRandomForestClassifier, X: pd.DataFrame, y: pd.Series) -> None:
     y_pred = rfc.predict(X)
     print("\nClassification report (train):")
     print(classification_report(y, y_pred, target_names=list(LABEL_NAMES.values())))
@@ -28,7 +29,7 @@ def evaluate_rfc(rfc: RandomForestClassifier, X: pd.DataFrame, y: pd.Series) -> 
     print(importances.to_string())
     importances.to_csv(OUTPUT_DIR / "feature_importances.csv")
 
-def predict_and_save(rfc: RandomForestClassifier, X_test: pd.DataFrame, test_ids: pd.Series) -> None:
+def predict_and_save(rfc: BalancedRandomForestClassifier, X_test: pd.DataFrame, test_ids: pd.Series) -> None:
     predictions = rfc.predict(X_test)
     label_names = pd.Series(predictions).map(LABEL_NAMES)
 

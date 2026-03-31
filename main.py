@@ -11,10 +11,10 @@ logging.basicConfig(
     format="%(asctime)s %(message)s",
     datefmt="%H:%M:%S"
 )
+log = logging.getLogger(__name__)
 
 LABEL_MAP = {"functional": 0, "functional needs repair": 1, "non functional": 2}
 
-log = logging.getLogger(__name__)
 
 def main():
     log.info("Reading and cleaning data...")

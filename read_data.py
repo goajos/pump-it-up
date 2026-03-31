@@ -8,7 +8,6 @@ DATA_DIR = Path("data")
 TRAIN_VALUES_FILE = "trainval.csv"
 TRAIN_LABELS_FILE = "trainlabel.csv"
 TEST_VALUES_FILE = "testval.csv"
-OUTPUT_DIR = Path("outputs")
 
 def _clean_data(df: pd.DataFrame) -> pd.DataFrame:
     cleaned = df.copy()
@@ -23,10 +22,10 @@ def _clean_data(df: pd.DataFrame) -> pd.DataFrame:
     # '-' and '0' present in the installer and funder column values
     cleaned = cleaned.replace({'-': np.nan, '0': np.nan})
 
-    plot_coordinates(cleaned, "before", OUTPUT_DIR)
+    plot_coordinates(cleaned, "before")
     # longitude of 0 makes no sense on the scatter plot
     cleaned["longitude"] = cleaned["longitude"].replace(0, np.nan)
-    plot_coordinates(cleaned, "after", OUTPUT_DIR)
+    plot_coordinates(cleaned, "after")
 
     # construction year and population of 0 makes no sense
     cleaned[["construction_year", "population"]] = cleaned[["construction_year", "population"]].replace(0, np.nan)
@@ -35,17 +34,17 @@ def _clean_data(df: pd.DataFrame) -> pd.DataFrame:
     # recorded by has only 1 value, so no info
     cleaned = cleaned.drop("recorded_by", axis=1)
 
-    plot_histogram(cleaned, "amount_tsh", "before", OUTPUT_DIR)
+    plot_histogram(cleaned, "amount_tsh", "before")
     # amount_tsh contains mostly 0s
     cleaned["amount_tsh"] = cleaned["amount_tsh"].replace(0, np.nan)
-    plot_histogram(cleaned, "amount_tsh", "after", OUTPUT_DIR)
+    plot_histogram(cleaned, "amount_tsh", "after")
     # almost 70% nan values, so drop column instead
     cleaned = cleaned.drop("amount_tsh", axis=1)
 
-    plot_histogram(cleaned, "gps_height", "before", OUTPUT_DIR)
+    plot_histogram(cleaned, "gps_height", "before")
     # gps_height also has a lot of 0s and that doesn't seem to make sense?
     cleaned["gps_height"] = cleaned["gps_height"].replace(0, np.nan)
-    plot_histogram(cleaned, "gps_height", "after", OUTPUT_DIR)
+    plot_histogram(cleaned, "gps_height", "after")
 
     # region and district code look categorical instead of numerical
     cleaned["region_code"] = cleaned["region_code"].astype(str)

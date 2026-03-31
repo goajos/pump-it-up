@@ -4,6 +4,11 @@ from difflib import SequenceMatcher
 import pandas as pd
 import matplotlib.pyplot as plt
 
+LABEL_NAMES = {0: "functional", 1: "functional needs repair", 2: "non functional"}
+LABEL_COLORS = {"functional": "green", "functional needs repair": "orange", "non functional": "red"}
+OUTPUT_DIR = Path("outputs")
+SEED = 8080
+
 def print_column_stats(df: pd.DataFrame, columns: list | None = None) -> None:
     """Function to print column statistics.
 
@@ -53,23 +58,23 @@ def print_column_stats_many_unique(df: pd.DataFrame, threshold: int) -> None:
 
     print_column_stats(df, columns)
 
-def plot_coordinates(df: pd.DataFrame, title: str, output_path: Path) -> None:
+def plot_coordinates(df: pd.DataFrame, title: str) -> None:
     fig, ax = plt.subplots()
     coords = df[["latitude", "longitude"]].dropna()
     ax.scatter(coords["longitude"], coords["latitude"])
     ax.set_xlabel("longitude")
     ax.set_ylabel("latitude")
     ax.set_title(title)
-    fig.savefig(output_path / f"{title}_coords.png")
+    fig.savefig(OUTPUT_DIR / f"{title}_coords.png")
     plt.close(fig)
 
-def plot_histogram(df: pd.DataFrame, column: str, title: str, output_path: Path) -> None:
+def plot_histogram(df: pd.DataFrame, column: str, title: str) -> None:
     fig, ax = plt.subplots()
     ax.hist(df[column].dropna(), bins=50)
     ax.set_xlabel(column)
     ax.set_ylabel("frequency")
     ax.set_title(f"{column} {title} histogram")
-    fig.savefig(output_path / f"{column}_{title}_hist.png")
+    fig.savefig(OUTPUT_DIR / f"{column}_{title}_hist.png")
     plt.close(fig)
 
 def group_fuzzy_matches(df: pd.DataFrame, column: str, threshold: float) -> pd.Series:
@@ -111,3 +116,28 @@ def _print_fuzzy_map(map: dict) -> None:
     for parent, variants in parents.items():
         if len(variants) > 1:
             print(f"{parent}: {variants}")
+
+# montage <imgage1>.png <image2>.png <image3>.png -tile 2x2 -geometry +0+0 stack.png
+# display stack.png
+def plot_status_map(df: pd.DataFrame, labels: pd.Series, status: str | None = None) -> None:
+    fig, ax = plt.subplots()
+    if status:
+        mask = labels == status
+        coords = df[mask][["longitude", "latitude"]].dropna()
+        ax.scatter(coords["longitude"], coords["latitude"], c=LABEL_COLORS[status], label=status, alpha=.25, s=2)
+    else:
+        for status, color in LABEL_COLORS.items():
+            mask = labels == status
+            coords = df[mask][["longitude", "latitude"]].dropna()
+            ax.scatter(coords["longitude"], coords["latitude"], c=color, label=status, alpha=.25, s=2)
+
+    ax.set_xlabel("longitude")
+    ax.set_ylabel("latitude")
+    if status:
+        ax.set_title(f"Water pump {status}")
+        fig.savefig(OUTPUT_DIR / f"{status}_map.png")
+    else:
+        ax.set_title("All water pump status")
+        fig.savefig(OUTPUT_DIR / "all_status_map.png")
+    plt.close(fig)
+

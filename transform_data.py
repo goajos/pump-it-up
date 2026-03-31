@@ -1,4 +1,4 @@
-from utils import group_fuzzy_matches
+from utils import group_fuzzy_matches, LABEL_NAMES
 from sklearn.preprocessing import OrdinalEncoder
 
 import pandas as pd
@@ -79,7 +79,7 @@ if __name__ == "__main__":
 
     X_train, encoders = transform_data(train_df, True)
     X_test, _ = transform_data(test_df, False, encoders)
-    y_train = train_labels_df["status_group"].map({"functional": 0, "functional needs repair": 1, "non functional": 2})
+    y_train = train_labels_df["status_group"].map(LABEL_NAMES)
 
     print(f"X train shape: {X_train.shape}")
     print(f"X test shape: {X_test.shape}")

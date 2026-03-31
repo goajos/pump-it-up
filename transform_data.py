@@ -1,4 +1,4 @@
-from utils import group_fuzzy_matches, LABEL_NAMES, print_column_stats
+from utils import group_fuzzy_matches, LABEL_NAMES
 from sklearn.preprocessing import OrdinalEncoder
 
 import pandas as pd
@@ -19,6 +19,11 @@ def _cap_high_cardinality(series: pd.Series, known_categories: list | None = Non
         top_categories = known_categories
     return series.where(series.isin(top_categories), other="other"), top_categories
 
+def _build_fuzzy_map(series: pd.Series, threshold: float) -> dict:
+     unique_vals = pd.Series(series.dropna().unique(), name="value")
+     grouped = group_fuzzy_matches(pd.DataFrame({"value": unique_vals}), "value", threshold)
+     return dict(zip(unique_vals.tolist(), grouped.tolist()))
+
 def transform_data(df: pd.DataFrame, fit_encoders: bool, encoders: dict | None = None) -> tuple[pd.DataFrame, dict]:
     transformed = df.copy()
 
@@ -34,15 +39,17 @@ def transform_data(df: pd.DataFrame, fit_encoders: bool, encoders: dict | None =
     transformed["year"] = transformed["date_recorded"].dt.year
     transformed = transformed.drop("date_recorded", axis = 1)
 
-    # use fuzzy matching to group similar strings
-    transformed["funder"] = group_fuzzy_matches(transformed, "funder", FUZZY_THRESHOLD)
-    transformed["installer"] = group_fuzzy_matches(transformed, "installer", FUZZY_THRESHOLD) 
-    # cap high cardinality categories, TOP_N_CATEGORIES are kept, rest is grouped into "other"
+    # deterministic fuzzy mapping: learned on train and reused on val/test
     for col in ["funder", "installer"]:
-        known_categories = None if fit_encoders else encoders.get(f"{col}_top_categories")
-        transformed[col], top_categories = _cap_high_cardinality(transformed[col], known_categories)
-        if fit_encoders:
-            encoders[f"{col}_top_categories"] = top_categories
+         if fit_encoders:
+             encoders[f"{col}_fuzzy_map"] = _build_fuzzy_map(transformed[col], FUZZY_THRESHOLD)
+         fuzzy_map = encoders.get(f"{col}_fuzzy_map", {})
+         transformed[col] = transformed[col].map(lambda v: fuzzy_map.get(v, v) if pd.notna(v) else v)
+ 
+         known_categories = None if fit_encoders else encoders.get(f"{col}_top_categories")
+         transformed[col], top_categories = _cap_high_cardinality(transformed[col], known_categories)
+         if fit_encoders:
+             encoders[f"{col}_top_categories"] = top_categories
 
     # naive mean strategy for numerical columns, recall
     numerical_cols = transformed.select_dtypes(include=[np.number]).columns
@@ -55,7 +62,8 @@ def transform_data(df: pd.DataFrame, fit_encoders: bool, encoders: dict | None =
 
     # map the boolean columns to 1 and 0
     for col in ["public_meeting", "permit"]:
-        transformed[col] = transformed[col].map({"True": 1, "False": 0}).fillna(0)
+        transformed[col] = transformed[col].map({True: 1, False: 0}).fillna(0)
+
 
     categorical_cols = transformed.select_dtypes(include=["str", "object"]).columns
     # set the remaining NA categorical columsn to "no data"
@@ -71,7 +79,6 @@ def transform_data(df: pd.DataFrame, fit_encoders: bool, encoders: dict | None =
         transformed[categorical_cols] = encoder.transform(transformed[categorical_cols])
 
     # print_column_stats_many_unique(transformed, UNIQUE_PRINT_THRESHOLD) 
-    print_column_stats(transformed)
 
     return transformed, encoders
 

@@ -2,7 +2,7 @@ from read_data import read_data
 from transform_data import transform_data
 from model import predict_and_save, train_rfc, evaluate_rfc
 from sklearn.model_selection import train_test_split
-from utils import SEED, plot_status_map
+from utils import SEED, plot_status_map, LABEL_MAP
 
 import logging
 
@@ -13,7 +13,6 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-LABEL_MAP = {"functional": 0, "functional needs repair": 1, "non functional": 2}
 
 
 def main():
@@ -27,14 +26,18 @@ def main():
     plot_status_map(train_df, train_labels_df["status_group"], "functional needs repair")
     plot_status_map(train_df, train_labels_df["status_group"],"non functional")
 
+    y = train_labels_df["status_group"].map(LABEL_MAP)
+    # stratify for class imbalance?
+    # prevent leakage
+    train_data, val_data, y_train, y_val = train_test_split(train_df, y, test_size=0.2, random_state=SEED, stratify=y) 
+
     log.info("Transforming train data...")
-    X, encoders = transform_data(train_df, fit_encoders=True)
+    X_train, encoders = transform_data(train_data, fit_encoders=True)
+    log.info("Transforming val data...")
+    X_val, _ = transform_data(val_data, fit_encoders=False, encoders=encoders)
     log.info("Transforming test data...")
     X_test, _ = transform_data(test_df, fit_encoders=False, encoders=encoders)
-    y = train_labels_df["status_group"].map(LABEL_MAP)
 
-    # stratify for class imbalance?
-    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=SEED, stratify=y) 
 
     log.info("Training model...")
     rfc = train_rfc(X_train, y_train)

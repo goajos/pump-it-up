@@ -1,9 +1,9 @@
 from utils import LABEL_NAMES, OUTPUT_DIR, SEED
-
-import pandas as pd
 # from sklearn.ensemble import RandomForestClassifier
 from imblearn.ensemble import BalancedRandomForestClassifier
 from sklearn.metrics import classification_report
+
+import pandas as pd
 
 def train_rfc(X: pd.DataFrame, y: pd.Series) -> BalancedRandomForestClassifier:
     rfc = BalancedRandomForestClassifier(
@@ -17,7 +17,7 @@ def train_rfc(X: pd.DataFrame, y: pd.Series) -> BalancedRandomForestClassifier:
 
 def evaluate_rfc(rfc: BalancedRandomForestClassifier, X: pd.DataFrame, y: pd.Series) -> None:
     y_pred = rfc.predict(X)
-    print("\nClassification report (train):")
+    print("\nClassification report (val):")
     print(classification_report(y, y_pred, target_names=list(LABEL_NAMES.values())))
 
     importances = (

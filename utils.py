@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 
 LABEL_NAMES = {0: "functional", 1: "functional needs repair", 2: "non functional"}
 LABEL_COLORS = {"functional": "green", "functional needs repair": "orange", "non functional": "red"}
+LABEL_MAP = {"functional": 0, "functional needs repair": 1, "non functional": 2}
 OUTPUT_DIR = Path("outputs")
 SEED = 8080
 
@@ -107,14 +108,14 @@ def group_fuzzy_matches(df: pd.DataFrame, column: str, threshold: float) -> pd.S
             if SequenceMatcher(None, val, other_val).ratio() >= threshold:
                 _union(val, other_val)
 
-    map = {val: _find(val) for val in unique_vals}
-    # _print_fuzzy_map(map)
+    mapping = {val: _find(val) for val in unique_vals}
+    # _print_fuzzy_map(mapping)
 
-    return df[column].map(map)
+    return df[column].map(mapping)
 
-def _print_fuzzy_map(map: dict) -> None:
+def _print_fuzzy_map(mapping: dict) -> None:
     parents = {}
-    for variant, parent in map.items():
+    for variant, parent in mapping.items():
         if parent not in parents:
             parents[parent] = []
         parents[parent].append(variant)
@@ -142,9 +143,24 @@ def plot_status_map(df: pd.DataFrame, labels: pd.Series, status: str | None = No
     ax.set_ylabel("Latitude")
     if status:
         ax.set_title(f"Water pump {status}")
-        fig.savefig(OUTPUT_DIR / f"{status}_map.png")
+        safe_status = status.replace(" ", "_")
+        fig.savefig(OUTPUT_DIR / f"{safe_status}_map.png")
     else:
         ax.set_title("All water pump status")
         fig.savefig(OUTPUT_DIR / "all_status_map.png")
     plt.close(fig)
 
+def plot_priority_scatter(df: pd.DataFrame, status: str) -> None:
+    fig, ax = plt.subplots()
+
+    population_min, population_max = df["population"].min(), df["population"].max()
+    sizes = 5 + 200 * (df["population"] - population_min) / (population_max - population_min) if population_max > population_min else 20
+
+    scatter = ax.scatter(df["longitude"], df["latitude"], c=df["priority_scores"], s=sizes, cmap="YlOrRd", edgecolors="none")
+    plt.colorbar(scatter, ax=ax, label="Priority Score")
+    ax.set_xlabel("Longitude")
+    ax.set_ylabel("Latitude")
+    ax.set_title(f"Priority map: {status}")
+    safe_status = status.replace(" ", "_")
+    fig.savefig(OUTPUT_DIR / f"priority_{safe_status}_map.png")
+    plt.close(fig)

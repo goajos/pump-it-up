@@ -8,6 +8,7 @@ The project is set up with [uv](https://docs.astral.sh/uv/getting-started/instal
 Clone the repository cd into the root folder and run `uv sync`
 
 ## Project stucture
+```
 |- data/*
 |- outputs/*
 |- main.py
@@ -16,6 +17,7 @@ Clone the repository cd into the root folder and run `uv sync`
 |- model.py
 |- prioritize.py
 |- utils.py
+```
 
 ## Code overview
 ### main.py

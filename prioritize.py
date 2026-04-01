@@ -54,12 +54,13 @@ if __name__ == "__main__":
     train_df, train_labels_df, test_df = read_data()
     test_ids = test_df["id"]
 
-    X, encoders = transform_data(train_df, fit_encoders=True)
-    X_test, _ = transform_data(test_df, fit_encoders=False, encoders=encoders)
     y = train_labels_df["status_group"].map(LABEL_MAP)
 
-    # stratify for class imbalance?
-    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=SEED, stratify=y) 
+    train_data, val_data, y_train, y_val = train_test_split(train_df, y, test_size=0.2, random_state=SEED, stratify=y) 
+
+    X_train, encoders = transform_data(train_data, fit_encoders=True)
+    X_val, _ = transform_data(val_data, fit_encoders=False, encoders=encoders)
+    X_test, _ = transform_data(test_df, fit_encoders=False, encoders=encoders)
 
     rfc = train_rfc(X_train, y_train)
     evaluate_rfc(rfc, X_val, y_val)

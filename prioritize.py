@@ -1,4 +1,5 @@
 from sklearn.model_selection import train_test_split
+from scipy.spatial import cKDTree
 from read_data import read_data
 from transform_data import transform_data
 from model import train_rfc, evaluate_rfc
@@ -7,8 +8,17 @@ from utils import SEED, LABEL_MAP, LABEL_NAMES, OUTPUT_DIR, plot_priority_scatte
 import pandas as pd
 import numpy as np
 
-WEIGHT_CONSTRUCTION_YEAR = 0.5
-WEIGHT_POPULATION = 0.5
+NON_FUNCTIONAL_WEIGHTS = {"population": 0.5, "nearest_functional": 0.5}
+NEEDS_REPAIR_WEIGHTS = {
+    "population": 1 / 3,
+    "nearest_functional": 1 / 3,
+    "construction_year": 1 / 3,
+}
+WEIGHT_MAP = {
+    "non functional": NON_FUNCTIONAL_WEIGHTS,
+    "functional needs repair": NEEDS_REPAIR_WEIGHTS,
+}
+
 
 def _normalize(series: pd.Series) -> pd.Series:
     min_val, max_val = series.min(), series.max()
@@ -16,38 +26,69 @@ def _normalize(series: pd.Series) -> pd.Series:
         return pd.Series(0.5, index=series.index)
     return (series - min_val) / (max_val - min_val)
 
-def _compute_priority_scores(data: pd.DataFrame) -> pd.DataFrame:
-    prioritized = data[["id", "construction_year", "population", "longitude", "latitude", "status_group"]].copy()
 
-    construction_year_norm = _normalize(prioritized["construction_year"])
-    population_norm =  _normalize(prioritized["population"])
+def _nearest_functional_distances(
+    non_functional: pd.DataFrame, functional: pd.DataFrame
+) -> pd.Series:
+    functional_coords = functional.dropna(subset=["latitude", "longitude"])[
+        ["latitude", "longitude"]
+    ].values
+    has_coords = (
+        non_functional["latitude"].notna() & non_functional["longitude"].notna()
+    )
 
-    functional_mask = prioritized["status_group"] == "functional"
-    functional_needs_repair_mask = prioritized["status_group"] == "functional needs repair"
-    non_functional_mask = prioritized["status_group"] == "non functional"
+    distances = pd.Series(np.nan, index=non_functional.index)
 
-    scores = pd.Series(np.nan, index=prioritized.index)
-    # higher priority = weight * norm
-    # lower piority = (1 - weight) * norm
-    # functional: more population = higher priority, newer construction year = lower priority
-    scores.loc[functional_mask] = WEIGHT_CONSTRUCTION_YEAR * (1 - construction_year_norm.loc[functional_mask]) + WEIGHT_POPULATION * population_norm.loc[functional_mask]
-    # functional need repair: more population = higher piority, newer construction year = lower priority
-    scores.loc[functional_needs_repair_mask] = WEIGHT_CONSTRUCTION_YEAR * (1 - construction_year_norm.loc[functional_needs_repair_mask]) + WEIGHT_POPULATION * population_norm.loc[functional_needs_repair_mask]
-    # non functional: more population = higher priority, newer construction year = higher priority 
-    scores.loc[non_functional_mask] = WEIGHT_CONSTRUCTION_YEAR * construction_year_norm.loc[non_functional_mask] + WEIGHT_POPULATION * population_norm.loc[non_functional_mask]
+    tree = cKDTree(functional_coords)
+    non_functional_coords = non_functional.loc[
+        has_coords, ["latitude", "longitude"]
+    ].values
+    dists, _ = tree.query(non_functional_coords, k=1)
+    distances.loc[has_coords] = dists
+    # median distance for pumps with no coords
+    distances.loc[~has_coords] = np.nanmedian(dists)
 
-    prioritized["priority_scores"] = scores.values
+    return distances
+
+
+def _compute_priority_scores(data: pd.DataFrame, status: str) -> pd.DataFrame:
+    prioritized = data[data["status_group"] == status].copy()
+    functional = data[data["status_group"] == "functional"].copy()
+
+    prioritized["nearest_functional_dist"] = _nearest_functional_distances(
+        prioritized, functional
+    )
+
+    year = prioritized["construction_year"].fillna(
+        prioritized["construction_year"].mean()
+    )
+    population = prioritized["population"].fillna(prioritized["population"].mean())
+
+    weights = WEIGHT_MAP[status]
+    if status == "non functional":
+        prioritized["priority_scores"] = weights["population"] * _normalize(
+            population
+        ) + weights["nearest_functional"] * _normalize(
+            prioritized["nearest_functional_dist"]
+        )
+    elif status == "functional needs repair":
+        prioritized["priority_scores"] = (
+            weights["construction_year"] * (1 - _normalize(year))
+            + weights["population"] * _normalize(population)
+            + weights["nearest_functional"]
+            * _normalize(prioritized["nearest_functional_dist"])
+        )
+
     return prioritized
 
+
 def prioritize_pumps(data: pd.DataFrame) -> None:
-    prioritized = _compute_priority_scores(data)
-    for status in LABEL_MAP.keys():
-        sorted_df = prioritized[prioritized["status_group"] == status].sort_values("priority_scores", ascending=False)
+    for status in ["non functional", "functional needs repair"]:
+        prioritized = _compute_priority_scores(data, status)
+        sorted_df = prioritized.sort_values("priority_scores", ascending=False)
         safe_status = status.replace(" ", "_")
         sorted_df.to_csv(OUTPUT_DIR / f"priority_{safe_status}.csv")
-        # TODO: fix scale for presentation?
         plot_priority_scatter(sorted_df, status)
-
 
 
 if __name__ == "__main__":
@@ -56,7 +97,9 @@ if __name__ == "__main__":
 
     y = train_labels_df["status_group"].map(LABEL_MAP)
 
-    train_data, val_data, y_train, y_val = train_test_split(train_df, y, test_size=0.2, random_state=SEED, stratify=y) 
+    train_data, val_data, y_train, y_val = train_test_split(
+        train_df, y, test_size=0.2, random_state=SEED, stratify=y
+    )
 
     X_train, encoders = transform_data(train_data, fit_encoders=True)
     X_val, _ = transform_data(val_data, fit_encoders=False, encoders=encoders)
@@ -69,6 +112,6 @@ if __name__ == "__main__":
 
     train_df["status_group"] = train_labels_df["status_group"].values
     test_df["status_group"] = predicted_labels.values
-    data = pd.concat([train_df, test_df]) 
+    data = pd.concat([train_df, test_df])
 
     prioritize_pumps(data)
